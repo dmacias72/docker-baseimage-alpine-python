@@ -1,0 +1,162 @@
+#!/usr/bin/php -q
+<?php
+$debug = FALSE;
+$prog  = pathinfo(__FILE__, PATHINFO_FILENAME);
+$usage = <<<EOF
+
+Test internet bandwidth and log results in xml format in situations
+where you don't have access to a full GUI environment and web browser.
+
+Usage: speedtest-xml [options]
+
+  -q, --quiet      suppress all packages progress
+      --verbose    print all packages progress
+      --help       display this help and exit
+      --version    output version information and exit
+      --debug      turn on debugging
+
+EOF;
+
+$shortopts = "q";
+$longopts = [
+    "help",
+    "quiet",
+    "verbose",
+    "version"
+];
+
+$args = getopt($shortopts, $longopts);
+
+if (array_key_exists("help", $args)) {
+    echo $usage;
+    exit(1);
+}
+
+if (array_key_exists("version", $args)) {
+    echo "Speedtest XML Version: 1.0\n";
+    exit(1);
+}
+
+$argq  = (array_key_exists("q", $args) || array_key_exists("quiet", $args));
+$argv  = (array_key_exists("v", $args) || array_key_exists("verbose", $args));
+$debug = array_key_exists("debug", $args);
+
+require_once("/config/www/include/parse_cfg.php");
+
+/* debug */
+function debug($m){
+  global $prog, $debug;
+  if($debug){
+    $STDERR = fopen('php://stderr', 'w+');
+    fwrite($STDERR, $m.PHP_EOL);
+    fclose($STDERR);
+  }
+}
+
+echo "Internet bandwidth test started\n\n";
+shell_exec("echo -e 'Internet bandwidth test started' | logger -tspeedtest");
+
+$xml = simplexml_load_file($s_filename);
+$test = $xml->addChild('test');
+$test->addAttribute('name', round(microtime(true) * 1000));
+
+$options = '';
+if ( $s_list == 'manual')
+    $options .= " --server $s_server";
+if ($s_secure == 'secure')
+    $options .= ' --secure';
+if ($s_share == 'share')
+    $options .= ' --share';
+if ($s_units == 'bytes'){
+    $options .= ' --bytes';
+    $units = ' MBps ';
+}else
+    $units = ' Mbps ';
+
+$info  = '';
+
+
+$cmd = "/usr/bin/speedtest  $options  2>/dev/null";
+$handle = popen($cmd, 'r');
+
+ob_start();
+$result = '';
+while(!feof($handle)) {
+    $buffer = trim(fgets($handle));
+    $msg = "$buffer\n\n";
+    $output = explode(": ", $buffer);
+    if ((strpos($output[0], 'Hosted by')) !== false) {
+        $host = substr($output[0],10);
+        $test->addAttribute('host', $host);
+        $test->addAttribute('ping', $output[1]);
+        $result .= 'Ping (Lowest): '.$output[1];
+        $ping = round(floatval($output[1]));
+        $info = "${host} ".$ping.' ms ';
+        $msg .= "Testing download speed...\n\n";
+    }elseif ((strpos($buffer, 'Download')) !== false) {
+        $test->addAttribute('download', $output[1]);
+        $result .= ' | Download (Max): '.$output[1];
+        $download = round(floatval($output[1]),1);
+        $info .= 'DL: '.$download.$units;
+        $msg .= "Testing upload speed...\n\n";
+    }elseif ((strpos($buffer, 'Upload')) !== false) {
+        $test->addAttribute('upload', $output[1]);
+        $result .= ' | Upload (Max): '.$output[1];
+        $upload = round(floatval($output[1]),1);
+        $info .= 'UL: '.$upload.$units;
+    }elseif ((strpos($buffer, "Share results")) !== false) {
+        $test->addAttribute('share', $output[1]);
+    }elseif (((strpos($buffer, 'Testing download')) !== false) || ((strpos($buffer, 'Testing upload')) !== false)) {
+        $msg = "";}
+    echo "$msg";
+
+    ob_flush();
+}
+
+
+pclose($handle);
+
+ob_end_flush();
+
+$xml->asXML($s_filename);
+
+//shell_exec("echo -e 'Host: ${host}' | logger -tspeedtest");
+
+//shell_exec("echo -e '${result}' | logger -tspeedtest");
+
+//shell_exec("echo -e 'Internet bandwidth test completed' | logger -tspeedtest");
+
+
+// if ($s_notify == 'yes'){
+//     $var     = parse_ini_file("/var/local/emhttp/var.ini");
+//     $docroot = $docroot ?? $_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp';
+//     $notify  = "$docroot/webGui/scripts/notify";
+//     $server  = strtoupper($var['NAME']);
+//     $stat = '';
+//     if ($download < $s_download){
+//         $stat .= ' Download';
+//     }
+//     if ($upload < $s_upload){
+//         $stat .= ' Upload';
+//     }
+//     if ($ping > $s_ping && $s_ping > 0){
+//         $stat .= ' Ping';
+//     }
+//     if (empty($stat)){
+//         $warn = 'normal';
+//         $subject = 'Notice';
+//     }else{
+//         $warn = 'warning';
+//         $subject = 'Warning';
+//     }
+
+//     if (($warn == 'warning' && $s_warn == 'yes') || ($warn == 'normal' && $s_warn == 'no') || ($warn == 'warning' && $s_warn == 'no')){
+//         $stat .= $warn=='normal' ? ' [PASS]' : ' [FAIL]';
+//         $message = "Host: ${host} | ${result}";
+
+//         exec("$notify -e ".escapeshellarg("Network Status")." -s ".escapeshellarg("$subject [$server] - Speedtest${stat}")." -d ".escapeshellarg("$info")." -m ".escapeshellarg("$message")." -i ".escapeshellarg("$warn"));
+//     }
+// }
+
+exit(0);
+?>
