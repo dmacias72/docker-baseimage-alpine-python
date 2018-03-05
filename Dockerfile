@@ -1,4 +1,13 @@
-FROM alpine:3.7
+FROM lsiobase/alpine:3.7
+
+# set version label
+ARG BUILD_DATE
+ARG VERSION
+LABEL build_version="dmacias72 version:- ${VERSION} Build-date:- ${BUILD_DATE}"
+LABEL maintainer="Stian Larsen,sparklyballs,aptalca,dmacias72"
+
+# environment settings
+ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2
 
 # install packages
 RUN \
@@ -11,8 +20,8 @@ RUN \
     speedtest-cli
 
 # add local files
-COPY docker-entrypoint.sh /usr/local/bin/
+COPY /root /
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+#ENTRYPOINT ["docker-entrypoint.sh"]
 
-CMD ["speedtest-cli"]
+#CMD ["speedtest-cli"]

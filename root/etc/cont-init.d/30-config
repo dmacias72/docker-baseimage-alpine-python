@@ -1,0 +1,13 @@
+#!/usr/bin/with-contenv bash
+
+# copy config
+
+# add cron file for running webgrab+plus
+#[[ ! -e /config/sp-cron ]] && \
+#    cp /defaults/sp-cron /config/sp-cron
+#crontab /config/sp-cron
+
+# permissions
+#chown -R abc:abc \
+#    /config \
+#    /data
